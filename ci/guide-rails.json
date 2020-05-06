@@ -31,7 +31,7 @@
 				"publish_attributes": {
 					"publish": true,
 					"docker_attributes": {
-						"repository": "((application.name))",
+						"repository": "et",
 						"tags": [
 							"((application.version))",
 							"latest"
