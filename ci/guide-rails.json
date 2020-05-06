@@ -4,7 +4,7 @@
 	},
 	"application": {
 		"name": "ecs-ecr-poc",
-		"language": "PYTHON",
+		"language": "JAVA",
 		"artifact_store": {
 			"type": "s3",
 			"repositories": [
