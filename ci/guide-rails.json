@@ -418,14 +418,7 @@
 				"code_analysis": null
 			}
 		},
-		"default_properties": [
-			{
-				"name": "service.inactivation.retries",
-				"description": "Number of retries to check if the ECS service has transitioned from the DRAINING status to INACTIVE status (with 5 second sleep time in between), when the ECS service has been deleted.",
-				"value": "20",
-				"type": "string"
-			}
-		],
+		"default_properties": [],
 		"deployment_files": [
 			{
 				"source_path": "task-def/sample-app-container-def.json.erb",
