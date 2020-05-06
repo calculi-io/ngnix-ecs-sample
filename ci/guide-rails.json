@@ -162,7 +162,7 @@
 					{
 						"name": "Health check the application",
 						"definition": "Health check the application",
-						"command": "curl -v https://${DNS_POC1} --connect-timeout 120 ",
+						"command": "echo \"Grace period of 10 seconds to allow service to come up\"\n\nsleep 10 \n\ntest $(curl -s -o /dev/null -w \"%{http_code}\" https://guide-rails-ecs-poc-1.calculi.io --connect-timeout 120) -eq 200 \u0026\u0026 echo \"Success\" || { echo \"Failed\"; exit 1; }",
 						"properties": null
 					},
 					{
