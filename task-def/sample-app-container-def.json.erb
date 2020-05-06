@@ -1,0 +1,34 @@
+[
+    {
+        "name": "<%= p("application.name") %>",
+        "image": "<%= p("target.docker.repository") %>",
+        "cpu": 0,
+        "portMappings": [ 
+            { 
+               "containerPort": <%= p("application.port") %>,
+               "hostPort": <%= p("application.port") %>,
+               "protocol": "tcp"
+            }
+         ],
+        "essential": true,
+        "environment": [],
+        "mountPoints": [],
+        "volumesFrom": [],
+        "logConfiguration": {
+            "logDriver": "awslogs",
+            "options": {
+                "awslogs-group": "/ecs/sample-app",
+                "awslogs-region": "us-east-1",
+                "awslogs-stream-prefix": "ecs"
+            }
+        },
+        "healthCheck": {
+            "command": [
+                "curl -f http://localhost || exit 1"
+            ],
+            "interval": 30,
+            "timeout": 5,
+            "retries": 3
+        }
+    }
+]

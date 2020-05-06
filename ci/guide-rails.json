@@ -1,0 +1,461 @@
+{
+	"metadata": {
+		"version": 2
+	},
+	"application": {
+		"name": "ecs-ecr-poc",
+		"language": "PYTHON",
+		"artifact_store": {
+			"type": "s3",
+			"repositories": [
+				{
+					"category": "rc-packaging",
+					"bucket": "guide-rails-calculi-rc"
+				},
+				{
+					"category": "final-packaging",
+					"bucket": "guide-rails-calculi-final"
+				},
+				{
+					"category": "logs",
+					"bucket": "guide-rails-calculi-logs"
+				}
+			]
+		}
+	},
+	"pipeline": {
+		"segments": [
+			{
+				"name": "Build",
+				"segment_type": "build",
+				"publish_attributes": {
+					"publish": true,
+					"docker_attributes": {
+						"repository": "((application.name))",
+						"tags": [
+							"((application.version))",
+							"latest"
+						],
+						"path": ""
+					}
+				},
+				"exit_actions": {
+					"default": {
+						"fetch_logs": true,
+						"code_analysis": {
+							"publish": true,
+							"properties": []
+						},
+						"delete_instances": true
+					},
+					"on_success": {
+						"code_analysis": null
+					},
+					"on_failure": {
+						"code_analysis": null
+					},
+					"on_abort": {
+						"code_analysis": null
+					}
+				},
+				"deployment_strategy": {},
+				"application_init": {
+					"command": "",
+					"arguments": null
+				},
+				"packages": [
+					{
+						"name": "iso-rds-db-update",
+						"dependencies": [],
+						"downloads": [],
+						"files": [
+							"db-iso-def/*"
+						],
+						"package_install_command": "",
+						"installed_path": ""
+					},
+					{
+						"name": "int-rds-db-update",
+						"dependencies": [],
+						"downloads": [],
+						"files": [
+							"db-int-def/*"
+						],
+						"package_install_command": "",
+						"installed_path": ""
+					}
+				],
+				"instance_tags": [
+					{
+						"name": "application.name",
+						"value": "((application.name))"
+					}
+				],
+				"post_deployment_actions": {
+					"instances": null,
+					"loadbalanced": false,
+					"loadbalancer": {
+						"TargetGroupName": "",
+						"TargetGroupPort": 0,
+						"TargetGroupProtocol": "",
+						"TargetType": "",
+						"VPCID": "",
+						"HealthCheckEnabled": false,
+						"HealthCheckPort": "",
+						"UnhealthyThresholdCount": 0
+					}
+				},
+				"cache_info": {},
+				"tasks": [
+					{
+						"name": "((application.name))",
+						"steps": [
+							{
+								"name": "get env",
+								"definition": "get env",
+								"command": "env ",
+								"properties": null
+							}
+						],
+						"docker_options": {}
+					}
+				]
+			},
+			{
+				"name": "Isolation",
+				"segment_type": "isolation",
+				"persistent": true,
+				"run_after": [
+					"Build"
+				],
+				"job_steps": [
+					{
+						"name": "Install the 'latest' AWS CLI",
+						"definition": "Install the 'latest' AWS CLI",
+						"command": "apt-get update\napt-get install -y jq\n\nwget https://s3.amazonaws.com/aws-cli/awscli-bundle.zip\nunzip awscli-bundle.zip\n./awscli-bundle/install -i /usr/local/aws -b /usr/local/bin/aws\n\naws --version",
+						"properties": null
+					},
+					{
+						"name": "Database update",
+						"definition": "Database update",
+						"command": "${PKG_BASE_DIR}/iso-rds-db-update/db-iso-def/aws_rds-data_create_table.sh\n\n${PKG_BASE_DIR}/iso-rds-db-update/db-iso-def/aws_rds-data_select_table.sh",
+						"properties": null
+					},
+					{
+						"name": "Create the application cluster if it does not already exist",
+						"definition": "Create the application cluster if it does not already exist",
+						"command": "aws ecs describe-clusters --clusters ${APPLICATION_CLUSTER} | grep -e '\"reason\": \"MISSING\"' -e '\"status\": \"INACTIVE\"' \u0026\u0026 aws ecs create-cluster --cluster-name ${APPLICATION_CLUSTER} || echo \"Cluster already exists...skipping cluster provisioning\"",
+						"properties": null
+					},
+					{
+						"name": "Register ECS task definition",
+						"definition": "Register ECS task definition",
+						"command": "aws ecs register-task-definition --family ${TASK_FAMILY} --execution-role-arn ${TASK_EXECUTION_ROLE} --network-mode awsvpc --container-definitions \"$(cat sample-app-container-def.json)\" --requires-compatibilities \"FARGATE\" --cpu ${CPU_UNITS} --memory ${MEMORY_UNITS}",
+						"properties": null
+					},
+					{
+						"name": "Deploy/Update the service",
+						"definition": "Deploy/Update the service",
+						"command": "aws ecs describe-services --cluster ${APPLICATION_CLUSTER} --services  ${SERVICE_NAME} | grep -e '\"reason\": \"MISSING\"' -e '\"status\": \"INACTIVE\"' \u0026\u0026 aws ecs create-service --cluster ${APPLICATION_CLUSTER} --service-name ${SERVICE_NAME} --task-definition ${TASK_FAMILY} --load-balancers targetGroupArn=${TARGETGROUP_POC1_ARN},containerName=${APPLICATION_NAME},containerPort=${APPLICATION_PORT} --desired-count ${INSTANCE_COUNT} --launch-type FARGATE --platform-version LATEST --network-configuration \"awsvpcConfiguration={subnets=[${DEPLOYMENT_SUBNET}],securityGroups=[${APPLICATION_SECURITYGROUP}],assignPublicIp=DISABLED}\" --health-check-grace-period-seconds ${HC_GRACEPERIOD_SECONDS} --scheduling-strategy REPLICA --deployment-controller type=ECS --deployment-configuration maximumPercent=${MAXIMUM_PERCENT},minimumHealthyPercent=${MINIMUM_HEALTHY_PERCENT} || aws ecs update-service --cluster ${APPLICATION_CLUSTER} --service ${SERVICE_NAME} --desired-count ${INSTANCE_COUNT} --task-definition ${TASK_FAMILY} --deployment-configuration maximumPercent=${MAXIMUM_PERCENT},minimumHealthyPercent=${MINIMUM_HEALTHY_PERCENT} --network-configuration \"awsvpcConfiguration={subnets=[${DEPLOYMENT_SUBNET}],securityGroups=[${APPLICATION_SECURITYGROUP}],assignPublicIp=DISABLED}\" --platform-version LATEST --force-new-deployment --health-check-grace-period-seconds ${HC_GRACEPERIOD_SECONDS}",
+						"properties": null
+					},
+					{
+						"name": "Health check the application",
+						"definition": "Health check the application",
+						"command": "curl -v https://${DNS_POC1} --connect-timeout 120 ",
+						"properties": null
+					},
+					{
+						"name": "Delete the ECS service",
+						"definition": "Delete the ECS service",
+						"command": "aws ecs delete-service --cluster ${APPLICATION_CLUSTER} --service ${SERVICE_NAME} --force ",
+						"properties": null
+					},
+					{
+						"name": "Wait for the ECS service to become INACTIVE",
+						"definition": "Wait for the ECS service to become INACTIVE",
+						"command": "echo \"Waiting for service - ${SERVICE_NAME} to become INACTIVE on the cluster - ${APPLICATION_CLUSTER}\"\ncount=${SERVICE_INACTIVATION_RETRIES}\nwhile [ $count -ge 0 ]; do\n        output=$(aws ecs describe-services --cluster ${APPLICATION_CLUSTER} --services  ${SERVICE_NAME} | grep -e '\"status\": \"INACTIVE\"' || true)\n        if [ ! -z \"$output\" ]; then\n             echo \"Service - ${SERVICE_NAME} is now inactive\"\n             break\n        fi\n        echo \"Service - ${SERVICE_NAME} is still draining\"\n        (( count-=1 ))\n        if [ \"$count\" -lt 0 ]; then\n            echo \"Service - ${SERVICE_NAME} failed to transition to INACTIVE within the stipulated wait period\"\n            exit 99\n        fi\n        sleep 5\n done",
+						"properties": null
+					},
+					{
+						"name": "Delete the cluster",
+						"definition": "Delete the cluster",
+						"command": "aws ecs delete-cluster --cluster ${APPLICATION_CLUSTER}",
+						"properties": null
+					},
+					{
+						"name": "Trigger the downstream application 'pipeline' ",
+						"definition": "Trigger the downstream application 'pipeline' ",
+						"command": "echo '{\"pipeline_id\":\"91bcb6fc-febb-4014-5eb0-9ee6199d140a\",\"segment_id\":\"Isolation\"}' | curl -v -X POST https://calculi-sb.calculi.io/v2/concourse/startPipeline -H \"Content-Type: application/json\" -d @-",
+						"properties": null
+					}
+				],
+				"exit_actions": {
+					"default": {
+						"fetch_logs": true,
+						"code_analysis": {
+							"publish": false,
+							"properties": null
+						},
+						"delete_instances": true
+					},
+					"on_success": {
+						"code_analysis": {
+							"publish": false,
+							"properties": null
+						}
+					},
+					"on_failure": {
+						"code_analysis": {
+							"publish": false,
+							"properties": null
+						}
+					},
+					"on_abort": {
+						"code_analysis": {
+							"publish": false,
+							"properties": null
+						}
+					}
+				},
+				"properties": [
+					{
+						"name": "instance.count",
+						"value": 2
+					},
+					{
+						"name": "application.cluster",
+						"value": "th-poc-isolation"
+					}
+				],
+				"deployment_strategy": {
+					"canaries": 1,
+					"max_in_flight": 1,
+					"canary_watch_time": "5000-30000",
+					"update_watch_time": "5000-30000",
+					"serial": false
+				},
+				"application_init": {
+					"command": "",
+					"arguments": null
+				},
+				"process": {
+					"init": {
+						"command": ""
+					}
+				},
+				"package_dependencies": [
+					"iso-rds-db-update"
+				],
+				"instance_tags": [
+					{
+						"name": "application.name",
+						"value": "((application.name))"
+					}
+				],
+				"post_deployment_actions": {
+					"instances": null,
+					"loadbalanced": false,
+					"loadbalancer": {
+						"TargetGroupName": "",
+						"TargetGroupPort": 0,
+						"TargetGroupProtocol": "",
+						"TargetType": "",
+						"VPCID": "",
+						"HealthCheckEnabled": false,
+						"HealthCheckPort": "",
+						"UnhealthyThresholdCount": 0
+					}
+				},
+				"source_code_available": false
+			},
+			{
+				"name": "Integration",
+				"segment_type": "integration",
+				"persistent": true,
+				"run_after": [
+					"Isolation"
+				],
+				"job_steps": [
+					{
+						"name": "Install the 'latest' AWS CLI",
+						"definition": "Install the 'latest' AWS CLI",
+						"command": "apt-get update\napt-get install -y jq\n\nwget https://s3.amazonaws.com/aws-cli/awscli-bundle.zip\nunzip awscli-bundle.zip\n./awscli-bundle/install -i /usr/local/aws -b /usr/local/bin/aws\n\naws --version",
+						"properties": null
+					},
+					{
+						"name": "Database update",
+						"definition": "Database update",
+						"command": "${PKG_BASE_DIR}/int-rds-db-update/db-int-def/aws_rds-data_create_table.sh\n\n${PKG_BASE_DIR}/int-rds-db-update/db-int-def/aws_rds-data_select_table.sh",
+						"properties": null
+					},
+					{
+						"name": "Create the application cluster if it does not already exist",
+						"definition": "Create the application cluster if it does not already exist",
+						"command": "aws ecs describe-clusters --clusters ${APPLICATION_CLUSTER} | grep -e '\"reason\": \"MISSING\"' -e '\"status\": \"INACTIVE\"' \u0026\u0026 aws ecs create-cluster --cluster-name ${APPLICATION_CLUSTER} || echo \"Cluster already exists...skipping cluster provisioning\"",
+						"properties": null
+					},
+					{
+						"name": "Register ECS task definition",
+						"definition": "Register ECS task definition",
+						"command": "aws ecs register-task-definition --family ${TASK_FAMILY} --execution-role-arn ${TASK_EXECUTION_ROLE} --network-mode awsvpc --container-definitions \"$(cat sample-app-container-def.json)\" --requires-compatibilities \"FARGATE\" --cpu ${CPU_UNITS} --memory ${MEMORY_UNITS}",
+						"properties": null
+					},
+					{
+						"name": "Deploy/Update the service",
+						"definition": "Deploy/Update the service",
+						"command": "aws ecs describe-services --cluster ${APPLICATION_CLUSTER} --services  ${SERVICE_NAME} | grep -e '\"reason\": \"MISSING\"' -e '\"status\": \"INACTIVE\"' \u0026\u0026 aws ecs create-service --cluster ${APPLICATION_CLUSTER} --service-name ${SERVICE_NAME} --task-definition ${TASK_FAMILY} --load-balancers targetGroupArn=${TARGETGROUP_POC1_ARN},containerName=${APPLICATION_NAME},containerPort=${APPLICATION_PORT} --desired-count ${INSTANCE_COUNT} --launch-type FARGATE --platform-version LATEST --network-configuration \"awsvpcConfiguration={subnets=[${DEPLOYMENT_SUBNET}],securityGroups=[${APPLICATION_SECURITYGROUP}],assignPublicIp=DISABLED}\" --health-check-grace-period-seconds ${HC_GRACEPERIOD_SECONDS} --scheduling-strategy REPLICA --deployment-controller type=ECS --deployment-configuration maximumPercent=${MAXIMUM_PERCENT},minimumHealthyPercent=${MINIMUM_HEALTHY_PERCENT} || aws ecs update-service --cluster ${APPLICATION_CLUSTER} --service ${SERVICE_NAME} --desired-count ${INSTANCE_COUNT} --task-definition ${TASK_FAMILY} --deployment-configuration maximumPercent=${MAXIMUM_PERCENT},minimumHealthyPercent=${MINIMUM_HEALTHY_PERCENT} --network-configuration \"awsvpcConfiguration={subnets=[${DEPLOYMENT_SUBNET}],securityGroups=[${APPLICATION_SECURITYGROUP}],assignPublicIp=DISABLED}\" --platform-version LATEST --force-new-deployment --health-check-grace-period-seconds ${HC_GRACEPERIOD_SECONDS}",
+						"properties": null
+					},
+					{
+						"name": "Health check the application",
+						"definition": "Health check the application",
+						"command": "curl -v https://${DNS_POC1} --connect-timeout 120",
+						"properties": null
+					},
+					{
+						"name": "Delete the ECS service",
+						"definition": "Delete the ECS service",
+						"command": "aws ecs delete-service --cluster ${APPLICATION_CLUSTER} --service ${SERVICE_NAME} --force ",
+						"properties": null
+					},
+					{
+						"name": "Wait for the ECS service to become INACTIVE",
+						"definition": "Wait for the ECS service to become INACTIVE",
+						"command": "echo \"Waiting for service - ${SERVICE_NAME} to become INACTIVE on the cluster - ${APPLICATION_CLUSTER}\"\ncount=${SERVICE_INACTIVATION_RETRIES}\nwhile [ $count -ge 0 ]; do\n        output=$(aws ecs describe-services --cluster ${APPLICATION_CLUSTER} --services  ${SERVICE_NAME} | grep -e '\"status\": \"INACTIVE\"' || true)\n        if [ ! -z \"$output\" ]; then\n             echo \"Service - ${SERVICE_NAME} is now inactive\"\n             break\n        fi\n        echo \"Service - ${SERVICE_NAME} is still draining\"\n        (( count-=1 ))\n        if [ \"$count\" -lt 0 ]; then\n            echo \"Service - ${SERVICE_NAME} failed to transition to INACTIVE within the stipulated wait period\"\n            exit 99\n        fi\n        sleep 5\n done",
+						"properties": null
+					},
+					{
+						"name": "Delete the cluster",
+						"definition": "Delete the cluster",
+						"command": "aws ecs delete-cluster --cluster ${APPLICATION_CLUSTER}",
+						"properties": null
+					}
+				],
+				"exit_actions": {
+					"default": {
+						"fetch_logs": true,
+						"code_analysis": {
+							"publish": false,
+							"properties": null
+						},
+						"delete_instances": true
+					},
+					"on_success": {
+						"code_analysis": {
+							"publish": false,
+							"properties": null
+						}
+					},
+					"on_failure": {
+						"code_analysis": {
+							"publish": false,
+							"properties": null
+						}
+					},
+					"on_abort": {
+						"code_analysis": {
+							"publish": false,
+							"properties": null
+						}
+					}
+				},
+				"properties": [
+					{
+						"name": "instance.count",
+						"value": 2
+					},
+					{
+						"name": "application.cluster",
+						"value": "th-poc-integration"
+					}
+				],
+				"deployment_strategy": {
+					"canaries": 1,
+					"max_in_flight": 1,
+					"canary_watch_time": "5000-30000",
+					"update_watch_time": "5000-30000",
+					"serial": false
+				},
+				"application_init": {
+					"command": "",
+					"arguments": null
+				},
+				"process": {
+					"init": {
+						"command": ""
+					}
+				},
+				"package_dependencies": [
+					"int-rds-db-update"
+				],
+				"instance_tags": [
+					{
+						"name": "application.name",
+						"value": "((application.name))"
+					}
+				],
+				"post_deployment_actions": {
+					"instances": null,
+					"loadbalanced": false,
+					"loadbalancer": {
+						"TargetGroupName": "",
+						"TargetGroupPort": 0,
+						"TargetGroupProtocol": "",
+						"TargetType": "",
+						"VPCID": "",
+						"HealthCheckEnabled": false,
+						"HealthCheckPort": "",
+						"UnhealthyThresholdCount": 0
+					}
+				}
+			}
+		],
+		"exit_actions": {
+			"default": {
+				"fetch_logs": true,
+				"code_analysis": {
+					"publish": true,
+					"properties": []
+				},
+				"delete_instances": true
+			},
+			"on_success": {
+				"code_analysis": null
+			},
+			"on_failure": {
+				"code_analysis": null
+			},
+			"on_abort": {
+				"code_analysis": null
+			}
+		},
+		"default_properties": [
+			{
+				"name": "service.inactivation.retries",
+				"description": "Number of retries to check if the ECS service has transitioned from the DRAINING status to INACTIVE status (with 5 second sleep time in between), when the ECS service has been deleted.",
+				"value": "20",
+				"type": "string"
+			}
+		],
+		"deployment_files": [
+			{
+				"source_path": "task-def/sample-app-container-def.json.erb",
+				"target_path": "sample-app-container-def.json"
+			}
+		],
+		"application_init": {
+			"command": "",
+			"arguments": null
+		},
+		"process": {
+			"init": {
+				"command": ""
+			}
+		},
+		"releases": []
+	},
+	"organization": {
+		"orgname": "GE-Healthcare-Trial"
+	}
+}
