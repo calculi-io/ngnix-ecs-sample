@@ -136,12 +136,6 @@
 						"properties": null
 					},
 					{
-						"name": "Database update",
-						"definition": "Database update",
-						"command": "${PKG_BASE_DIR}/iso-rds-db-update/db-iso-def/aws_rds-data_create_table.sh\n\n${PKG_BASE_DIR}/iso-rds-db-update/db-iso-def/aws_rds-data_select_table.sh",
-						"properties": null
-					},
-					{
 						"name": "Create the application cluster if it does not already exist",
 						"definition": "Create the application cluster if it does not already exist",
 						"command": "aws ecs describe-clusters --clusters ${APPLICATION_CLUSTER} | grep -e '\"reason\": \"MISSING\"' -e '\"status\": \"INACTIVE\"' \u0026\u0026 aws ecs create-cluster --cluster-name ${APPLICATION_CLUSTER} || echo \"Cluster already exists...skipping cluster provisioning\"",
@@ -181,12 +175,6 @@
 						"name": "Delete the cluster",
 						"definition": "Delete the cluster",
 						"command": "aws ecs delete-cluster --cluster ${APPLICATION_CLUSTER}",
-						"properties": null
-					},
-					{
-						"name": "Trigger the downstream application 'pipeline' ",
-						"definition": "Trigger the downstream application 'pipeline' ",
-						"command": "echo '{\"pipeline_id\":\"91bcb6fc-febb-4014-5eb0-9ee6199d140a\",\"segment_id\":\"Isolation\"}' | curl -v -X POST https://calculi-sb.calculi.io/v2/concourse/startPipeline -H \"Content-Type: application/json\" -d @-",
 						"properties": null
 					}
 				],
