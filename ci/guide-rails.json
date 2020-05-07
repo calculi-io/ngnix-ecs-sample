@@ -408,7 +408,7 @@
 			"default": {
 				"fetch_logs": true,
 				"code_analysis": {
-					"publish": true,
+					"publish": false,
 					"properties": []
 				},
 				"delete_instances": true
