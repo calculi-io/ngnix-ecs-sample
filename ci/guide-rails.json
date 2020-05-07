@@ -168,7 +168,7 @@
 					{
 						"name": "Wait for the ECS service to become INACTIVE",
 						"definition": "Wait for the ECS service to become INACTIVE",
-						"command": "echo \"Waiting for service - ${SERVICE_NAME} to become INACTIVE on the cluster - ${APPLICATION_CLUSTER}\"\ncount=${SERVICE_INACTIVATION_RETRIES}\nwhile [ $count -ge 0 ]; do\n        output=$(aws ecs describe-services --cluster ${APPLICATION_CLUSTER} --services  ${SERVICE_NAME} | grep -e '\"status\": \"INACTIVE\"' || true)\n        if [ ! -z \"$output\" ]; then\n             echo \"Service - ${SERVICE_NAME} is now inactive\"\n             break\n        fi\n        echo \"Service - ${SERVICE_NAME} is still draining\"\n        (( count-=1 ))\n        if [ \"$count\" -lt 0 ]; then\n            echo \"Service - ${SERVICE_NAME} failed to transition to INACTIVE within the stipulated wait period\"\n            exit 99\n        fi\n        sleep 5\n done",
+						"command": "set -x\necho \"Waiting for service - ${SERVICE_NAME} to become INACTIVE on the cluster - ${APPLICATION_CLUSTER}\"\ncount=${SERVICE_INACTIVATION_RETRIES}\nwhile [ $count -ge 0 ]; do\n        output=$(aws ecs describe-services --cluster ${APPLICATION_CLUSTER} --services  ${SERVICE_NAME} | grep -e '\"status\": \"INACTIVE\"' || true)\n        if [ ! -z \"$output\" ]; then\n             echo \"Service - ${SERVICE_NAME} is now inactive\"\n             break\n        fi\n        echo \"Service - ${SERVICE_NAME} is still draining\"\n        (( count-=1 ))\n        if [ \"$count\" -lt 0 ]; then\n            echo \"Service - ${SERVICE_NAME} failed to transition to INACTIVE within the stipulated wait period\"\n            exit 99\n        fi\n        sleep 5\n done",
 						"properties": null
 					},
 					{
