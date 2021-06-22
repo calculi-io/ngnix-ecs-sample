@@ -31,12 +31,15 @@
 				"publish_attributes": {
 					"publish": true,
 					"docker_attributes": {
+						"docker_registry_alias_id": "f5aeaf85-5985-472c-43d3-6752af7385a4",
 						"repository": "nginx",
 						"tags": [
 							"((application.version))",
 							"latest"
 						],
-						"path": ""
+						"path": "",
+						"context": "",
+						"docker_file_path": ""
 					}
 				},
 				"exit_actions": {
@@ -79,22 +82,12 @@
 				"instance_tags": [
 					{
 						"name": "application.name",
-						"value": "((application.name))"
+						"value": "((application.name))",
+						"when": "0001-01-01T00:00:00Z"
 					}
 				],
 				"post_deployment_actions": {
-					"instances": null,
-					"loadbalanced": false,
-					"loadbalancer": {
-						"TargetGroupName": "",
-						"TargetGroupPort": 0,
-						"TargetGroupProtocol": "",
-						"TargetType": "",
-						"VPCID": "",
-						"HealthCheckEnabled": false,
-						"HealthCheckPort": "",
-						"UnhealthyThresholdCount": 0
-					}
+					"loadbalancer": {}
 				},
 				"cache_info": {},
 				"tasks": [
@@ -196,20 +189,24 @@
 				"properties": [
 					{
 						"name": "instance.count",
-						"value": 2
+						"value": 2,
+						"when": "0001-01-01T00:00:00Z"
 					},
 					{
 						"name": "application.cluster",
-						"value": "th-poc-isolation"
+						"value": "th-poc-isolation",
+						"when": "0001-01-01T00:00:00Z"
 					},
 					{
 						"name": "wait.until",
+						"value": 60,
 						"description": "Wait for these many 'seconds' before checking the application ",
-						"value": 60
+						"when": "0001-01-01T00:00:00Z"
 					},
 					{
 						"name": "service.inactivation.retries",
-						"value": 30
+						"value": 30,
+						"when": "0001-01-01T00:00:00Z"
 					}
 				],
 				"deployment_strategy": {
@@ -229,22 +226,12 @@
 				"instance_tags": [
 					{
 						"name": "application.name",
-						"value": "((application.name))"
+						"value": "((application.name))",
+						"when": "0001-01-01T00:00:00Z"
 					}
 				],
 				"post_deployment_actions": {
-					"instances": null,
-					"loadbalanced": false,
-					"loadbalancer": {
-						"TargetGroupName": "",
-						"TargetGroupPort": 0,
-						"TargetGroupProtocol": "",
-						"TargetType": "",
-						"VPCID": "",
-						"HealthCheckEnabled": false,
-						"HealthCheckPort": "",
-						"UnhealthyThresholdCount": 0
-					}
+					"loadbalancer": {}
 				},
 				"source_code_available": false
 			},
@@ -338,11 +325,13 @@
 				"properties": [
 					{
 						"name": "instance.count",
-						"value": 2
+						"value": 2,
+						"when": "0001-01-01T00:00:00Z"
 					},
 					{
 						"name": "application.cluster",
-						"value": "th-poc-integration"
+						"value": "th-poc-integration",
+						"when": "0001-01-01T00:00:00Z"
 					}
 				],
 				"deployment_strategy": {
@@ -362,22 +351,12 @@
 				"instance_tags": [
 					{
 						"name": "application.name",
-						"value": "((application.name))"
+						"value": "((application.name))",
+						"when": "0001-01-01T00:00:00Z"
 					}
 				],
 				"post_deployment_actions": {
-					"instances": null,
-					"loadbalanced": false,
-					"loadbalancer": {
-						"TargetGroupName": "",
-						"TargetGroupPort": 0,
-						"TargetGroupProtocol": "",
-						"TargetType": "",
-						"VPCID": "",
-						"HealthCheckEnabled": false,
-						"HealthCheckPort": "",
-						"UnhealthyThresholdCount": 0
-					}
+					"loadbalancer": {}
 				}
 			}
 		],
@@ -409,8 +388,7 @@
 		"application_init": {},
 		"process": {
 			"init": {}
-		},
-		"releases": []
+		}
 	},
 	"organization": {
 		"orgname": "GE-Healthcare-Trial"
